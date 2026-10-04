@@ -39,6 +39,7 @@ import (
 	"github.com/lib/pq"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"gorm.io/gorm"
 )
 
 var registerModelBody = `{
@@ -433,8 +434,8 @@ func TestUploadModelFailureModelNotRegistered(t *testing.T) {
 	iDBMockInst := new(mme_mocks.IDBMock)
 	modelName := "test-model"
 	modelVersion := "1"
-	// Returns Empty model, signifying Model is Not registered
-	iDBMockInst.On("GetModelInfoByNameAndVer").Return(&models.ModelRelatedInformation{}, nil)
+	// The repository returns ErrRecordNotFound when the model is not registered.
+	iDBMockInst.On("GetModelInfoByNameAndVer").Return((*models.ModelRelatedInformation)(nil), gorm.ErrRecordNotFound)
 	handler := apis.NewMmeApiHandler(nil, iDBMockInst)
 	router := routers.InitRouter(handler)
 	responseRecorder := httptest.NewRecorder()

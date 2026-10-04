@@ -36,6 +36,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgerrcode"
 	"github.com/lib/pq"
+	"gorm.io/gorm"
 )
 
 const (
@@ -174,22 +175,20 @@ func (m *MmeApiHandler) GetModelInfo(cont *gin.Context) {
 			// get all modelInfo by model name and version
 			modelInfo, err := m.iDB.GetModelInfoByNameAndVer(modelName, modelVersion)
 			if err != nil {
+				if errors.Is(err, gorm.ErrRecordNotFound) {
+					cont.JSON(http.StatusNotFound, models.ProblemDetail{
+						Status: http.StatusNotFound,
+						Title:  "Not Found",
+						Detail: fmt.Sprintf("Record not found with modelName: %s and modelVersion: %s", modelName, modelVersion),
+					})
+					return
+				}
 				statusCode := http.StatusInternalServerError
 				logging.ERROR("Error occurred, send status code: ", statusCode)
 				cont.JSON(statusCode, models.ProblemDetail{
 					Status: http.StatusInternalServerError,
 					Title:  "Internal Server Error",
 					Detail: fmt.Sprintf("Can't fetch all the models due to , %s", err.Error()),
-				})
-				return
-			}
-			if modelInfo.ModelId.ModelName != modelName && modelInfo.ModelId.ModelVersion != modelVersion {
-				statusCode := http.StatusNotFound
-				logging.ERROR("Record not found, send status code: ", statusCode)
-				cont.JSON(statusCode, models.ProblemDetail{
-					Status: http.StatusNotFound,
-					Title:  "Not Found",
-					Detail: fmt.Sprintf("Record not found with modelName: %s and modelVersion: %s", modelName, modelVersion),
 				})
 				return
 			}
@@ -264,23 +263,20 @@ func (m *MmeApiHandler) UploadModel(cont *gin.Context) {
 	// Confirm if Model with Given ModelId: (ModelName and ModelVersion) is Registered or not:
 	modelInfo, err := m.iDB.GetModelInfoByNameAndVer(modelName, modelVersion)
 	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			cont.JSON(http.StatusNotFound, models.ProblemDetail{
+				Status: http.StatusNotFound,
+				Title:  "Not Found",
+				Detail: fmt.Sprintf("ModelName: %s and modelVersion: %s is not registered, Kindly register it first!", modelName, modelVersion),
+			})
+			return
+		}
 		statusCode := http.StatusInternalServerError
 		logging.ERROR("Error occurred while getting models: " + strconv.Itoa(statusCode))
 		cont.JSON(statusCode, models.ProblemDetail{
 			Status: statusCode,
 			Title:  "Internal Server Error",
 			Detail: fmt.Sprintf("Can't fetch model with modelName : %s & modelVersion : %s due to , %s", modelName, modelVersion, err.Error()),
-		})
-		return
-	}
-
-	if modelInfo.ModelId.ModelName != modelName && modelInfo.ModelId.ModelVersion != modelVersion {
-		statusCode := http.StatusNotFound
-		logging.ERROR("Record not found, send status code: " + strconv.Itoa(statusCode))
-		cont.JSON(statusCode, models.ProblemDetail{
-			Status: statusCode,
-			Title:  "Not Found",
-			Detail: fmt.Sprintf("ModelName: %s and modelVersion: %s is not registered, Kindly register it first!", modelName, modelVersion),
 		})
 		return
 	}
@@ -495,9 +491,13 @@ func (m *MmeApiHandler) UpdateArtifact(cont *gin.Context) {
 	artifactversion := cont.Param("artifactversion")
 	modelInfo, err := m.iDB.GetModelInfoByNameAndVer(modelname, modelversion)
 	if err != nil {
+		statusCode := http.StatusInternalServerError
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			statusCode = http.StatusNotFound
+		}
 		logging.ERROR("error:", err)
-		cont.JSON(http.StatusInternalServerError, gin.H{
-			"code":    http.StatusInternalServerError,
+		cont.JSON(statusCode, gin.H{
+			"code":    statusCode,
 			"message": err.Error(),
 		})
 		return
